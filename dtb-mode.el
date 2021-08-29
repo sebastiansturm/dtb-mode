@@ -45,24 +45,21 @@
   :group 'dtb)
 
 (defun dtb--translate (orig-file-name)
-  (if (file-remote-p orig-file-name)
-      (let ((tmp-path (make-temp-file (file-name-nondirectory orig-file-name)))
-            (result))
-        (copy-file orig-file-name tmp-path t)
-        (with-temp-buffer
-          (find-file tmp-path)
-          (setq result
-                (shell-command-to-string
-                 (format "%s -I dtb %s"
-                         dtb-dtc-executable-path
-                         (shell-quote-argument tmp-path)))))
-        (delete-file tmp-path)
-        result)
-    ;; local file, process directly
-    (shell-command-to-string
-     (format "%s -I dtb %s"
-             dtb-dtc-executable-path
-             (shell-quote-argument orig-file-name)))))
+  (let ((cmd (format "%s -I dtb --quiet" dtb-dtc-executable-path)))
+    (if (file-remote-p orig-file-name)
+        (let ((tmp-path (make-temp-file (file-name-nondirectory orig-file-name)))
+              (result))
+          (copy-file orig-file-name tmp-path t)
+          (with-temp-buffer
+            (find-file tmp-path)
+            (setq result
+                  (shell-command-to-string
+                   (format "%s %s" cmd (shell-quote-argument tmp-path)))))
+          (delete-file tmp-path)
+          result)
+      ;; local file, process directly
+      (shell-command-to-string
+       (format "%s %s" cmd (shell-quote-argument orig-file-name))))))
 
 (define-minor-mode dtb-mode
   "Minor-mode for viewing device tree blobs."
