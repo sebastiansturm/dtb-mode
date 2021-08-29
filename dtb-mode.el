@@ -35,7 +35,7 @@
 ;;; Code:
 
 (defgroup dtb nil
-  "Minor mode for viewing plantuml file."
+  "Minor mode for viewing dtb files."
   :group 'languages)
 
 (defcustom dtb-dtc-executable-path
@@ -44,23 +44,40 @@
   :type 'string
   :group 'dtb)
 
+(defun dtb--translate (orig-file-name)
+  (if (file-remote-p orig-file-name)
+      (let ((tmp-path (make-temp-file (file-name-nondirectory orig-file-name)))
+            (result))
+        (copy-file orig-file-name tmp-path t)
+        (with-temp-buffer
+          (find-file tmp-path)
+          (setq result
+                (shell-command-to-string
+                 (format "%s -I dtb %s"
+                         dtb-dtc-executable-path
+                         (shell-quote-argument tmp-path)))))
+        (delete-file tmp-path)
+        result)
+    ;; local file, process directly
+    (shell-command-to-string
+     (format "%s -I dtb %s"
+             dtb-dtc-executable-path
+             (shell-quote-argument orig-file-name)))))
+
 (define-minor-mode dtb-mode
-  "minor-mode for viewing device tree blobs."
+  "Minor-mode for viewing device tree blobs."
   nil " dtb" nil
-  (let ((inhibit-read-only t)
-        (file-name (buffer-file-name))
-        (dtc_bin (executable-find dtb-dtc-executable-path)))
+  (let* ((inhibit-read-only t)
+         (file-name (buffer-file-name))
+         (dtc_bin (executable-find dtb-dtc-executable-path)))
     (cond
      ((not file-name) (message "No file association with current buffer"))
      ((not dtc_bin) (message "Can't find dtc executable"))
      (t (progn
           (if dtb-mode
-              (progn
+              (let ((translated-contents (dtb--translate file-name)))
                 (erase-buffer)
-                (insert (shell-command-to-string
-                         (format "%s -I dtb %s"
-                                 dtb-dtc-executable-path
-                                 (shell-quote-argument file-name))))
+                (insert translated-contents)
                 (goto-char (point-min))
                 (if (fboundp 'dts-mode) (dts-mode)))
             (erase-buffer)
